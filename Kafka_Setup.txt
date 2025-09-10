@@ -1,0 +1,77 @@
+Adding below is the kafka setup file i used.
+-------------------------------------------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------------------------
+
+Set up Kafka --
+
+Download setup and extract 
+https://kafka.apache.org/downloads
+
+
+Create logs directory 
+------------------------------------------------
+kafka_logs-- zookeeper 
+kafka_logs-- server_logs 
+
+
+change the zookeeper.properties:
+------------------------------------------------------
+dataDir=C:/kafka_logs/zookeeper
+maxClientCnxns=1
+
+
+change the server.properties:
+----------------------------------------------------
+uncomment listeners
+log.dirs=C:/kafka_logs/kafka_server
+zookeeper.connection.timeout.ms=90000
+
+Start Zookeeper: : Ensure Java installation
+---------------------------------------
+C:/kafka_2.12-3.6.0/bin/windows/zookeeper-server-start.bat C:/kafka_2.12-3.6.0/config/zookeeper.properties
+
+--ERROR : The system cannot find the path specified.
+solution : $env:JAVA_HOME=       
+   set JAVA_HOME = ""
+
+
+Start Kafka-server:
+-----------------------------------------
+C:/kafka_2.12-3.6.0/bin/windows/kafka-server-start.bat C:/kafka_2.12-3.6.0/config/server.properties
+
+
+Create topic:
+------------------------------------
+C:/kafka_2.12-3.6.0/bin/windows/kafka-topics.bat --create --topic hello_world --bootstrap-server EPINHYDW015E:9092 --replication-factor 1 --partitions 1
+
+
+Start Producer:
+--------------------------------------
+C:/kafka_2.12-3.6.0/bin/windows/kafka-console-producer.bat --topic hello_world --bootstrap-server EPINHYDW015E:9092
+
+
+Start Consumer:
+-------------------------------------
+C:/kafka_2.12-3.6.0/bin/windows/kafka-console-consumer.bat --topic hello_world --from-beginning --bootstrap-server EPINHYDW015E:9092
+
+
+kafka-python installation:
+--------------------------------------------------
+pip install kafka-python
+
+
+Python Code:
+----------------------------------
+from time import sleep
+from json import dumps
+from kafka import KafkaProducer
+
+topic_name='hello_world'
+producer = KafkaProducer(bootstrap_servers=['EPINHYDW015E:9092'],value_serializer=lambda x: dumps(x).encode('utf-8'))
+
+for e in range(500):
+    data = {'py script publisher=' : e}
+    print(data)
+    producer.send(topic_name, value=data)
+    sleep(2)
+-------------------------------------------------------------------------------------------------------------------------------------

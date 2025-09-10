@@ -1,0 +1,11 @@
+alter user kafka_connector_user_1 set rsa_public_key='MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0mk8UFmyoxfCd6vJ1QoN
+PuKywyWNSmDl1s29lrKQWq2W9I3OuJ7h/I47OqIQXEe6NdDJ+Ab+Sz+USbETpEg9
+rHyKegcnIMd9AulrOAY2PXYW8Ej/w8jleSUa/Q4EbezhSM0fxuk11qE89JaVnICI
+AZYe6L/DXvhqs8ZOwAg+FgUSDOMHVheWYO0zHjiLLHBjzjOqjLnY08WryDDBrhQR
+kYgHE6hS00q0Jbt9NcTz4a1CBfa8OWvX5FhOUDcLPnHdmM4JSjZxX+MpeO4ueUai
+xBihLr0HNQAEk9IZkZFy7wZs6bTQxGRteYDBNVy+JfVC4bSC1zoFXSljj3IASjwu
+JQIDAQAB';
+
+
+--Verify the public key is configured properly or not --
+desc user kafka_connector_user_1;

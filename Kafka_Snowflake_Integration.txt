@@ -1,0 +1,168 @@
+=============================                        IMPLIMENTATION STEPS 
+Create snowflake schema and user to be used for data ingestion
+---------------------------------------
+USE ROLE ACCOUNTADMIN;
+
+--Create database and schema
+create database if not exists analytics ;
+create schema if not exists analytics.kafka_schema;
+
+-- Use a role that can create and manage roles and privileges.
+USE ROLE securityadmin;
+
+--create kafka user
+CREATE USER IF NOT EXISTS kafka_connector_user_1;
+
+-- Create a Snowflake role with the privileges to work with the connector.
+CREATE ROLE kafka_connector_role_1;
+
+-- Grant privileges on the database.
+GRANT USAGE ON DATABASE analytics TO ROLE kafka_connector_role_1;
+
+-- Grant privileges on the schema.
+GRANT USAGE ON SCHEMA kafka_schema TO ROLE kafka_connector_role_1;
+GRANT CREATE TABLE ON SCHEMA kafka_schema TO ROLE kafka_connector_role_1;
+GRANT CREATE STAGE ON SCHEMA kafka_schema TO ROLE kafka_connector_role_1;
+GRANT CREATE PIPE ON SCHEMA kafka_schema TO ROLE kafka_connector_role_1;
+
+-- Grant the custom role to an existing user.
+GRANT ROLE kafka_connector_role_1 TO USER kafka_connector_user_1;
+GRANT ROLE kafka_connector_role_1 TO ROLE securityadmin;
+
+-- Set the custom role as the default role for the user.
+-- If you encounter an 'Insufficient privileges' error, verify the role that has the OWNERSHIP privilege on the user.
+ALTER USER kafka_connector_user_1 SET DEFAULT_ROLE = kafka_connector_role_1;
+
+
+Kafka Snowflake Integration:
+--------------------------------------------------------
+Download the required jar file -- https://mvnrepository.com/artifact/com.snowflake/snowflake-kafka-connector/2.1.0
+
+Put this jar in libs folders
+
+
+Update kafka connect-standalone properties
+-------------------------------------------
+uncomment plugin.path and put = C:/kafka_2.12-3.6.0/libs
+
+
+Create Private & Public key-pair: Open Git-Bash and go to the directory where you want to store the pem and pub file
+--------------------------------------------------------------
+openssl genrsa -out rsa_key.pem 2048
+openssl rsa -in rsa_key.pem -pubout -out rsa_key.pub
+
+
+Configure the public key in Snowflake:
+----------------------------------------------------------------
+
+alter user kafka_connector_user_1 set rsa_public_key='{Put the Public key content here}';
+
+Verify the public key is configured properly or not --
+desc user kafka_connector_user_1;
+
+
+verify snowflake key-pair authentication
+----------------------------------------------------------------
+snowsql -a JSYUTEI-RV71709 -u kafka_connector_user_1 --private-key-path  C:\Users\Sairam_Kanamarlapudi\Desktop\keys/rsa_key.pem
+
+Create a SF_connect.properties file with below properties in config folder -- remove line breaks for private key
+--------------------------------------------------
+connector.class=com.snowflake.kafka.connector.SnowflakeSinkConnector
+tasks.max=8
+topics=topic_regional_txn_rt
+snowflake.topic2table.map=topic_regional_txn_rt:topic_regional_txn_rt_tbl
+buffer.count.records=10000
+buffer.flush.time=60
+buffer.size.bytes=5000000
+snowflake.url.name=JSYUTEI-RV71709.snowflakecomputing.com
+snowflake.user.name=kafka_connector_user_1
+snowflake.private.key=MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDSaTxQWbKjF8J3 q8nVCg0+4rLDJY1KYOXWzb2WspBarZb0jc64nuH8jjs6ohBcR7o10Mn4Bv5LP5RJ sROkSD2sfIp6Bycgx30C6Ws4BjY9dhbwSP/DyOV5JRr9DgRt7OFIzR/G6TXWoTz0 lpWcgIgBlh7ov8Ne+Gqzxk7ACD4WBRIM4wdWF5Zg7TMeOIsscGPOM6qMudjTxavI MMGuFBGRiAcTqFLTSrQlu301xPPhrUIF9rw5a9fkWE5QNws+cd2YzglKNnFf4yl4 7i55RqLEGKEuvQc1AAST0hmRkXLvBmzptNDEZG15gME1XL4l9ULhtILXOgVdKWOP cgBKPC4lAgMBAAECggEACz4tR1vWSZRU7fZjb/s8BEldD5lbkzGvRkrdtQYwjsUq GkIo3WuRRrXw4Jaqn3ZZCFQc3qBns8H0x0/rbUKg7QJbQd73o8Q/tUlJ/dyIccCe xChvu4M/Y7mXAhY0KA2EEihHvjtVhvTm9WjFxhmGFZOdw4ZaRveozUICO4zqiFw/ Mfgbfq63uC40zAkmxHbVLF/OeVIxSCZA8rsBPy75IhuIEI/Y7XClYfS6sIRW7xFx lQ9C+2iGy/7Lwt755nKP3l7TLvmfAV5U7vmD/H3nmjVgme2op+hyUz8QnAOiKhjL UthrY2yuhtne0gRauEsxCd3WJWjCzLP0VQOYCXG1cQKBgQDqkSaRUqlo/o5bMIEN Pg1/qir7PgI8ukG9+LpregFFFtFzlmlogb2F5T/IavCJVJDFl/0DjozKvHoLTpDp d6Y5KFLm32H64WAb0fOC423b8RQE54oSzOxBTiHDZzuCniCZ4X0HILVMog8hXoGp ndRnUGPY+dMCTdd+K34n/5JofQKBgQDlowtX6/88cGZZu39pJhvopVt8n+AgZNjV MAARQIWMvQslQL74jY2CqwNEm4dqlRORiD5dDhXzOfRuI1tvkLzHbMNMAQmcf0Re Uzq8sPbgbU6COwUygQXRvrixd5oFx5xDOafHaK7/cUzHgbmUu/EMIRJ5mQ5xVBrb oh8Fh0X0yQKBgQCu6N+Oe8oxraevXeLNYhkkulpkkF+Qsv60ztULsaVixFoYy+77 68rMHh9KrluAvBtcDDKxxUk9IAANkF9EiGDdvDDdUXM5ZXeKJytizX4tBH5+Db2K uV3ucHmCwObCRnFe7aKSfxRR+YI4ysT7GuK4y1w4/kkXLb5jqcDfyJZ+7QKBgF9n qeLRba1SlXNabsjkyFuTt7rDQX6z51JLKvv/7nxWXjcP+0eQp+ZN3oG2jEA/x22D SUWoAH6Y6XCIyAhF/ehsy4bcN34JcgIuWgzjCO6c+y0oEDS3Xg+SSXGR2y/jioxz e71hRLNkAx4wS0X7/12mr+JNMK7s3mu5o2HMncfhAoGBAJf33AEQWhxzsumbTJ2q PKuAv52+Q87CO6X8beE9rlbyTH7daP+wHfk0YCBhYJAeVuHvj/WWirvWOPTGkV0B ZHnxlAqHPbU/V3kmZm3hbPYtCkhgYRbCV19nk4lo3hEvXLF4XsLKkyoUV++GIIj6 wBfNXfYbu7HujLY2AcdE+hbn
+snowflake.database.name=ANALYTICS
+snowflake.schema.name=KAFKA_SCHEMA
+key.converter=com.snowflake.kafka.connector.records.SnowflakeJsonConverter
+value.converter=com.snowflake.kafka.connector.records.SnowflakeJsonConverter
+name=kafka_regional_txn_rt_ingest
+
+Start Zookeeper: : Ensure Java installation
+---------------------------------------
+C:/kafka_2.12-3.6.0/bin/windows/zookeeper-server-start.bat C:/kafka_2.12-3.6.0/config/zookeeper.properties
+
+--ERROR : The system cannot find the path specified.
+solution : $env:JAVA_HOME=       
+			set JAVA_HOME = ""
+
+
+Start Kafka-server:
+-----------------------------------------
+C:/kafka_2.12-3.6.0/bin/windows/kafka-server-start.bat C:/kafka_2.12-3.6.0/config/server.properties
+
+Create topic:
+------------------------------------
+C:/kafka_2.12-3.6.0/bin/windows/kafka-topics.bat --create --topic topic_regional_txn_rt --bootstrap-server EPINHYDW015E:9092 --replication-factor 1 --partitions 1
+
+Start Producer:
+--------------------------------------
+C:/kafka_2.12-3.6.0/bin/windows/kafka-console-producer.bat --topic topic_regional_txn_rt --bootstrap-server EPINHYDW015E:9092
+
+Start Consumer to check if events are being published:
+-------------------------------------
+C:/kafka_2.12-3.6.0/bin/windows/kafka-console-consumer.bat --topic topic_regional_txn_rt --from-beginning --bootstrap-server EPINHYDW015E:9092
+
+
+Start the connector
+-----------------------------------
+C:/kafka_2.12-3.6.0/bin/windows/connect-standalone.bat C:/kafka_2.12-3.6.0/config/connect-standalone.properties C:/kafka_2.12-3.6.0/config/SF_connect.properties
+
+
+Run Python code to Create Publisher and write events to kafka topic: You can create multiple publishers as well
+--------------------------------------
+#pip install kafka-connector 
+
+from time import sleep
+from json import dumps
+from kafka import KafkaProducer
+import random
+
+topic_name='topic_regional_txn_rt'
+publisher_1 = KafkaProducer(bootstrap_servers=['EPINHYDW015E:9092'],value_serializer=lambda x: dumps(x).encode('utf-8'))
+
+for e in range(1000):
+    publisher_1_data ={
+    "publisher_id":'st1',
+    "publisher_name":'Store 1',
+    "publisher_address":'Store 1 Address',
+    "txn_id":f"st1_{e}",
+    "txn_amount": random.randint(100,1000)
+    }
+    print(publisher_1_data)
+    publisher_1.send(topic_name, value=publisher_1_data)
+    sleep(0.5)
+
+
+
+
+
+
+
+CREATE DYNAMIC TABLE IN SNOWFLAKE FOR TRANSACTION SUMMARY
+------------------------------------
+CREATE  OR REPLACE  DYNAMIC TABLE ANALYTICS.RPT.WM_STORE_TXN_SUMMARY
+  TARGET_LAG =  '60  seconds '  
+  WAREHOUSE = COMPUTE_WH
+  AS   
+with data as (select parse_json(record_content) rc 
+            from ANALYTICS.KAFKA_SCHEMA.demo_kafka_topic_101_tbl
+)
+,intm as (select rc:publisher_id::string as store_id,
+            rc:publisher_name::string as store_name,
+            rc:publisher_addres::string as store_address,
+            rc:txn_id::string as txn_id,
+            rc:txn_amount::int as txn_amount
+from data )
+select store_id,
+        store_name,
+        count(*) as txn_count,
+        sum(txn_amount) as total_txn_amount
+        from intm
+        group by all
+        order by store_id;
